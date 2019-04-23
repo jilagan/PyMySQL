@@ -1,9 +1,5 @@
-#!/usr/bin/env python
 from . import capabilities
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+import unittest
 import pymysql
 from pymysql.tests import base
 import warnings
@@ -16,10 +12,9 @@ class test_MySQLdb(capabilities.DatabaseTest):
     connect_args = ()
     connect_kwargs = base.PyMySQLTestCase.databases[0].copy()
     connect_kwargs.update(dict(read_default_file='~/.my.cnf',
-                          use_unicode=True,
-                          charset='utf8', sql_mode="ANSI,STRICT_TRANS_TABLES,TRADITIONAL"))
+                          use_unicode=True, binary_prefix=True,
+                          charset='utf8mb4', sql_mode="ANSI,STRICT_TRANS_TABLES,TRADITIONAL"))
 
-    create_table_extra = "ENGINE=INNODB CHARACTER SET UTF8"
     leak_test = False
 
     def quote_identifier(self, ident):
@@ -99,11 +94,3 @@ class test_MySQLdb(capabilities.DatabaseTest):
 
     def test_literal_string(self):
         self.assertTrue("'foo'" == self.connection.literal("foo"))
-
-
-if __name__ == '__main__':
-    if test_MySQLdb.leak_test:
-        import gc
-        gc.enable()
-        gc.set_debug(gc.DEBUG_LEAK)
-    unittest.main()

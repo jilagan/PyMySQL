@@ -3,9 +3,12 @@ import time
 import warnings
 import sys
 
+import pytest
+
 import pymysql
+from pymysql import cursors
+from pymysql._compat import text_type
 from pymysql.tests import base
-import unittest2
 
 try:
     import imp
@@ -19,7 +22,7 @@ __all__ = ["TestOldIssues", "TestNewIssues", "TestGitHubIssues"]
 class TestOldIssues(base.PyMySQLTestCase):
     def test_issue_3(self):
         """ undefined methods datetime_or_None, date_or_None """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -34,13 +37,13 @@ class TestOldIssues(base.PyMySQLTestCase):
             c.execute("select dt from issue3")
             self.assertEqual(None, c.fetchone()[0])
             c.execute("select ts from issue3")
-            self.assertTrue(isinstance(c.fetchone()[0], datetime.datetime))
+            self.assertIn(type(c.fetchone()[0]), (type(None), datetime.datetime), 'expected Python type None or datetime from SQL timestamp')
         finally:
             c.execute("drop table issue3")
 
     def test_issue_4(self):
         """ can't retrieve TIMESTAMP fields """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -55,7 +58,7 @@ class TestOldIssues(base.PyMySQLTestCase):
 
     def test_issue_5(self):
         """ query on information_schema.tables fails """
-        con = self.connections[0]
+        con = self.connect()
         cur = con.cursor()
         cur.execute("select * from information_schema.tables")
 
@@ -71,7 +74,7 @@ class TestOldIssues(base.PyMySQLTestCase):
 
     def test_issue_8(self):
         """ Primary Key and Index error when selecting data """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -96,7 +99,7 @@ KEY (`station`,`dh`,`echeance`)) ENGINE=MyISAM DEFAULT CHARSET=latin1;""")
 
     def test_issue_13(self):
         """ can't handle large result fields """
-        conn = self.connections[0]
+        conn = self.connect()
         cur = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -115,7 +118,7 @@ KEY (`station`,`dh`,`echeance`)) ENGINE=MyISAM DEFAULT CHARSET=latin1;""")
 
     def test_issue_15(self):
         """ query should be expanded before perform character encoding """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -130,7 +133,7 @@ KEY (`station`,`dh`,`echeance`)) ENGINE=MyISAM DEFAULT CHARSET=latin1;""")
 
     def test_issue_16(self):
         """ Patch for string and tuple escaping """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -143,10 +146,10 @@ KEY (`station`,`dh`,`echeance`)) ENGINE=MyISAM DEFAULT CHARSET=latin1;""")
         finally:
             c.execute("drop table issue16")
 
-    @unittest2.skip("test_issue_17() requires a custom, legacy MySQL configuration and will not be run.")
+    @pytest.mark.skip("test_issue_17() requires a custom, legacy MySQL configuration and will not be run.")
     def test_issue_17(self):
         """could not connect mysql use passwod"""
-        conn = self.connections[0]
+        conn = self.connect()
         host = self.databases[0]["host"]
         db = self.databases[0]["db"]
         c = conn.cursor()
@@ -187,9 +190,9 @@ class TestNewIssues(base.PyMySQLTestCase):
         c.execute(u"select name from hei\xdfe")
         self.assertEqual(u"Pi\xdfata", c.fetchone()[0])
 
-    @unittest2.skip("This test requires manual intervention")
+    @pytest.mark.skip("This test requires manual intervention")
     def test_issue_35(self):
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         print("sudo killall -9 mysqld within the next 10 seconds")
         try:
@@ -235,7 +238,7 @@ class TestNewIssues(base.PyMySQLTestCase):
             del self.connections[1]
 
     def test_issue_37(self):
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         self.assertEqual(1, c.execute("SELECT @foo"))
         self.assertEqual((None,), c.fetchone())
@@ -243,7 +246,7 @@ class TestNewIssues(base.PyMySQLTestCase):
         c.execute("set @foo = 'bar'")
 
     def test_issue_38(self):
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         datum = "a" * 1024 * 1023 # reduced size for most default mysql installs
 
@@ -257,7 +260,7 @@ class TestNewIssues(base.PyMySQLTestCase):
             c.execute("drop table issue38")
 
     def disabled_test_issue_54(self):
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -276,7 +279,7 @@ class TestNewIssues(base.PyMySQLTestCase):
 class TestGitHubIssues(base.PyMySQLTestCase):
     def test_issue_66(self):
         """ 'Connection' object has no attribute 'insert_id' """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor()
         self.assertEqual(0, conn.insert_id())
         try:
@@ -292,7 +295,7 @@ class TestGitHubIssues(base.PyMySQLTestCase):
 
     def test_issue_79(self):
         """ Duplicate field overwrites the previous one in the result of DictCursor """
-        conn = self.connections[0]
+        conn = self.connect()
         c = conn.cursor(pymysql.cursors.DictCursor)
 
         with warnings.catch_warnings():
@@ -319,7 +322,7 @@ class TestGitHubIssues(base.PyMySQLTestCase):
 
     def test_issue_95(self):
         """ Leftover trailing OK packet for "CALL my_sp" queries """
-        conn = self.connections[0]
+        conn = self.connect()
         cur = conn.cursor()
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
@@ -364,7 +367,7 @@ class TestGitHubIssues(base.PyMySQLTestCase):
 
     def test_issue_175(self):
         """ The number of fields returned by server is read in wrong way """
-        conn = self.connections[0]
+        conn = self.connect()
         cur = conn.cursor()
         for length in (200, 300):
             columns = ', '.join('c{0} integer'.format(i) for i in range(length))
@@ -407,14 +410,14 @@ class TestGitHubIssues(base.PyMySQLTestCase):
 
     def test_issue_364(self):
         """ Test mixed unicode/binary arguments in executemany. """
-        conn = pymysql.connect(charset="utf8", **self.databases[0])
+        conn = pymysql.connect(charset="utf8mb4", **self.databases[0])
         self.safe_create_table(
             conn, "issue364",
             "create table issue364 (value_1 binary(3), value_2 varchar(3)) "
-            "engine=InnoDB default charset=utf8")
+            "engine=InnoDB default charset=utf8mb4")
 
-        sql = "insert into issue364 (value_1, value_2) values (%s, %s)"
-        usql = u"insert into issue364 (value_1, value_2) values (%s, %s)"
+        sql = "insert into issue364 (value_1, value_2) values (_binary %s, %s)"
+        usql = u"insert into issue364 (value_1, value_2) values (_binary %s, %s)"
         values = [pymysql.Binary(b"\x00\xff\x00"), u"\xe4\xf6\xfc"]
 
         # test single insert and select
@@ -441,37 +444,33 @@ class TestGitHubIssues(base.PyMySQLTestCase):
         self.safe_create_table(
             conn, "issue363",
             "CREATE TABLE issue363 ( "
-            "id INTEGER PRIMARY KEY, geom LINESTRING NOT NULL, "
+            "id INTEGER PRIMARY KEY, geom LINESTRING NOT NULL /*!80003 SRID 0 */, "
             "SPATIAL KEY geom (geom)) "
-            "ENGINE=MyISAM default charset=utf8")
+            "ENGINE=MyISAM")
 
         cur = conn.cursor()
-        query = ("INSERT INTO issue363 (id, geom) VALUES"
-                 "(1998, GeomFromText('LINESTRING(1.1 1.1,2.2 2.2)'))")
         # From MySQL 5.7, ST_GeomFromText is added and GeomFromText is deprecated.
         if self.mysql_server_is(conn, (5, 7, 0)):
-            with self.assertWarns(pymysql.err.Warning) as cm:
-                cur.execute(query)
+            geom_from_text = "ST_GeomFromText"
+            geom_as_text = "ST_AsText"
+            geom_as_bin = "ST_AsBinary"
         else:
-            cur.execute(query)
+            geom_from_text = "GeomFromText"
+            geom_as_text = "AsText"
+            geom_as_bin = "AsBinary"
+        query = ("INSERT INTO issue363 (id, geom) VALUES"
+                 "(1998, %s('LINESTRING(1.1 1.1,2.2 2.2)'))" % geom_from_text)
+        cur.execute(query)
 
         # select WKT
-        query = "SELECT AsText(geom) FROM issue363"
-        if sys.version_info[0:2] >= (3,2) and self.mysql_server_is(conn, (5, 7, 0)):
-            with self.assertWarns(pymysql.err.Warning) as cm:
-                cur.execute(query)
-        else:
-            cur.execute(query)
+        query = "SELECT %s(geom) FROM issue363" % geom_as_text
+        cur.execute(query)
         row = cur.fetchone()
         self.assertEqual(row, ("LINESTRING(1.1 1.1,2.2 2.2)", ))
 
         # select WKB
-        query = "SELECT AsBinary(geom) FROM issue363"
-        if sys.version_info[0:2] >= (3,2) and self.mysql_server_is(conn, (5, 7, 0)):
-            with self.assertWarns(pymysql.err.Warning) as cm:
-                cur.execute(query)
-        else:
-            cur.execute(query)
+        query = "SELECT %s(geom) FROM issue363" % geom_as_bin
+        cur.execute(query)
         row = cur.fetchone()
         self.assertEqual(row,
                          (b"\x01\x02\x00\x00\x00\x02\x00\x00\x00"

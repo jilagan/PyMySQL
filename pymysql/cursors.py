@@ -2,36 +2,39 @@
 from __future__ import print_function, absolute_import
 from functools import partial
 import re
-import warnings
 
 from ._compat import range_type, text_type, PY2
-
 from . import err
 
 
 #: Regular expression for :meth:`Cursor.executemany`.
 #: executemany only suports simple bulk insert.
 #: You can use it to load large dataset.
-RE_INSERT_VALUES = re.compile(r"""(INSERT\s.+\sVALUES\s+)(\(\s*(?:%s|%\(.+\)s)\s*(?:,\s*(?:%s|%\(.+\)s)\s*)*\))(\s*(?:ON DUPLICATE.*)?)\Z""",
-                              re.IGNORECASE | re.DOTALL)
+RE_INSERT_VALUES = re.compile(
+    r"\s*((?:INSERT|REPLACE)\b.+\bVALUES?\s*)" +
+    r"(\(\s*(?:%s|%\(.+\)s)\s*(?:,\s*(?:%s|%\(.+\)s)\s*)*\))" +
+    r"(\s*(?:ON DUPLICATE.*)?);?\s*\Z",
+    re.IGNORECASE | re.DOTALL)
 
 
 class Cursor(object):
-    '''
+    """
     This is the object you use to interact with the database.
-    '''
 
-    #: Max stetement size which :meth:`executemany` generates.
+    Do not create an instance of a Cursor yourself. Call
+    connections.Connection.cursor().
+
+    See `Cursor <https://www.python.org/dev/peps/pep-0249/#cursor-objects>`_ in
+    the specification.
+    """
+
+    #: Max statement size which :meth:`executemany` generates.
     #:
     #: Max size of allowed statement is max_allowed_packet - packet_header_size.
     #: Default value of max_allowed_packet is 1048576.
     max_stmt_length = 1024000
 
     def __init__(self, connection):
-        '''
-        Do not create an instance of a Cursor yourself. Call
-        connections.Connection.cursor().
-        '''
         self.connection = connection
         self.description = None
         self.rownumber = 0
@@ -42,9 +45,9 @@ class Cursor(object):
         self._rows = None
 
     def close(self):
-        '''
+        """
         Closing a cursor just exhausts all remaining data.
-        '''
+        """
         conn = self.connection
         if conn is None:
             return
@@ -87,6 +90,8 @@ class Cursor(object):
             return None
         if not current_result.has_next:
             return None
+        self._result = None
+        self._clear_result()
         conn.next_result(unbuffered=unbuffered)
         self._do_get_result()
         return True
@@ -107,12 +112,12 @@ class Cursor(object):
         if isinstance(args, (tuple, list)):
             if PY2:
                 args = tuple(map(ensure_bytes, args))
-            return tuple(conn.escape(arg) for arg in args)
+            return tuple(conn.literal(arg) for arg in args)
         elif isinstance(args, dict):
             if PY2:
-                args = dict((ensure_bytes(key), ensure_bytes(val)) for
-                            (key, val) in args.items())
-            return dict((key, conn.escape(val)) for (key, val) in args.items())
+                args = {ensure_bytes(key): ensure_bytes(val) for
+                        (key, val) in args.items()}
+            return {key: conn.literal(val) for (key, val) in args.items()}
         else:
             # If it's not a dictionary let's try escaping it anyways.
             # Worst case it will throw a Value error
@@ -141,7 +146,7 @@ class Cursor(object):
 
         :param str query: Query to execute.
 
-        :param args: arameters used with query. (optional)
+        :param args: parameters used with query. (optional)
         :type args: tuple, list or dict
 
         :return: Number of affected rows
@@ -160,17 +165,23 @@ class Cursor(object):
         return result
 
     def executemany(self, query, args):
+        # type: (str, list) -> int
         """Run several data against one query
 
-        PyMySQL can execute bulkinsert for query like 'INSERT ... VALUES (%s)'.
-        In other form of queries, just run :meth:`execute` many times.
+        :param query: query to execute on server
+        :param args:  Sequence of sequences or mappings.  It is used as parameter.
+        :return: Number of rows affected, if any.
+
+        This method improves performance on multiple-row INSERT and
+        REPLACE. Otherwise it is equivalent to looping over args with
+        execute().
         """
         if not args:
             return
 
         m = RE_INSERT_VALUES.match(query)
         if m:
-            q_prefix = m.group(1)
+            q_prefix = m.group(1) % ()
             q_values = m.group(2).rstrip()
             q_postfix = m.group(3) or ''
             assert q_values[0] == '(' and q_values[-1] == ')'
@@ -246,9 +257,10 @@ class Cursor(object):
         disconnected.
         """
         conn = self._get_db()
-        for index, arg in enumerate(args):
-            q = "SET @_%s_%d=%s" % (procname, index, conn.escape(arg))
-            self._query(q)
+        if args:
+            fmt = '@_{0}_%d=%s'.format(procname)
+            self._query('SET %s' % ','.join(fmt % (index, conn.escape(arg))
+                                            for index, arg in enumerate(args)))
             self.nextset()
 
         q = "CALL %s(%s)" % (procname,
@@ -259,7 +271,7 @@ class Cursor(object):
         return args
 
     def fetchone(self):
-        ''' Fetch the next row '''
+        """Fetch the next row"""
         self._check_executed()
         if self._rows is None or self.rownumber >= len(self._rows):
             return None
@@ -268,7 +280,7 @@ class Cursor(object):
         return result
 
     def fetchmany(self, size=None):
-        ''' Fetch several rows '''
+        """Fetch several rows"""
         self._check_executed()
         if self._rows is None:
             return ()
@@ -278,7 +290,7 @@ class Cursor(object):
         return result
 
     def fetchall(self):
-        ''' Fetch all the rows '''
+        """Fetch all the rows"""
         self._check_executed()
         if self._rows is None:
             return ()
@@ -305,36 +317,29 @@ class Cursor(object):
     def _query(self, q):
         conn = self._get_db()
         self._last_executed = q
+        self._clear_result()
         conn.query(q)
         self._do_get_result()
         return self.rowcount
 
+    def _clear_result(self):
+        self.rownumber = 0
+        self._result = None
+
+        self.rowcount = 0
+        self.description = None
+        self.lastrowid = None
+        self._rows = None
+
     def _do_get_result(self):
         conn = self._get_db()
 
-        self.rownumber = 0
         self._result = result = conn._result
 
         self.rowcount = result.affected_rows
         self.description = result.description
         self.lastrowid = result.insert_id
         self._rows = result.rows
-
-        if result.warning_count > 0:
-            self._show_warnings(conn)
-
-    def _show_warnings(self, conn):
-        if self._result and self._result.has_next:
-            return
-        ws = conn.show_warnings()
-        if ws is None:
-            return
-        for w in ws:
-            msg = w[-1]
-            if PY2:
-                if isinstance(msg, unicode):
-                    msg = msg.encode('utf-8', 'replace')
-            warnings.warn(str(msg), err.Warning, 4)
 
     def __iter__(self):
         return iter(self.fetchone, None)
@@ -385,8 +390,8 @@ class SSCursor(Cursor):
     or for connections to remote servers over a slow network.
 
     Instead of copying every row of data into a buffer, this will fetch
-    rows as needed. The upside of this, is the client uses much less memory,
-    and rows are returned much faster when traveling over a slow network,
+    rows as needed. The upside of this is the client uses much less memory,
+    and rows are returned much faster when traveling over a slow network
     or if the result set is very big.
 
     There are limitations, though. The MySQL protocol doesn't support
@@ -412,9 +417,12 @@ class SSCursor(Cursor):
         finally:
             self.connection = None
 
+    __del__ = close
+
     def _query(self, q):
         conn = self._get_db()
         self._last_executed = q
+        self._clear_result()
         conn.query(q, unbuffered=True)
         self._do_get_result()
         return self.rowcount
@@ -423,11 +431,11 @@ class SSCursor(Cursor):
         return self._nextset(unbuffered=True)
 
     def read_next(self):
-        """ Read next row """
+        """Read next row"""
         return self._conv_row(self._result._read_rowdata_packet_unbuffered())
 
     def fetchone(self):
-        """ Fetch next row """
+        """Fetch next row"""
         self._check_executed()
         row = self.read_next()
         if row is None:
@@ -455,7 +463,7 @@ class SSCursor(Cursor):
         return self.fetchall_unbuffered()
 
     def fetchmany(self, size=None):
-        """ Fetch many """
+        """Fetch many"""
         self._check_executed()
         if size is None:
             size = self.arraysize
@@ -494,4 +502,4 @@ class SSCursor(Cursor):
 
 
 class SSDictCursor(DictCursorMixin, SSCursor):
-    """ An unbuffered cursor, which returns results as a dictionary """
+    """An unbuffered cursor, which returns results as a dictionary"""

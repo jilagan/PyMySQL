@@ -1,17 +1,36 @@
-=======
+.. image:: https://readthedocs.org/projects/pymysql/badge/?version=latest
+    :target: https://pymysql.readthedocs.io/
+    :alt: Documentation Status
+
+.. image:: https://badge.fury.io/py/PyMySQL.svg
+    :target: https://badge.fury.io/py/PyMySQL
+
+.. image:: https://travis-ci.org/PyMySQL/PyMySQL.svg?branch=master
+    :target: https://travis-ci.org/PyMySQL/PyMySQL
+
+.. image:: https://coveralls.io/repos/PyMySQL/PyMySQL/badge.svg?branch=master&service=github
+    :target: https://coveralls.io/github/PyMySQL/PyMySQL?branch=master
+
+.. image:: https://img.shields.io/badge/license-MIT-blue.svg
+    :target: https://github.com/PyMySQL/PyMySQL/blob/master/LICENSE
+
+
 PyMySQL
 =======
 
-.. image:: https://travis-ci.org/PyMySQL/PyMySQL.svg?branch=master
-   :target: https://travis-ci.org/PyMySQL/PyMySQL
+.. contents:: Table of Contents
+   :local:
 
-.. image:: https://coveralls.io/repos/PyMySQL/PyMySQL/badge.svg?branch=master&service=github
-   :target: https://coveralls.io/github/PyMySQL/PyMySQL?branch=master
+This package contains a pure-Python MySQL client library, based on `PEP 249`_.
 
-.. contents::
+Most public APIs are compatible with mysqlclient and MySQLdb.
 
-This package contains a pure-Python MySQL client library. The goal of PyMySQL
-is to be a drop-in replacement for MySQLdb and work on CPython, PyPy and IronPython.
+NOTE: PyMySQL doesn't support low level APIs `_mysql` provides like `data_seek`,
+`store_result`, and `use_result`. You should use high level APIs defined in `PEP 249`_.
+But some APIs like `autocommit` and `ping` are supported because `PEP 249`_ doesn't cover
+their usecase.
+
+.. _`PEP 249`: https://www.python.org/dev/peps/pep-0249/
 
 
 Requirements
@@ -19,61 +38,42 @@ Requirements
 
 * Python -- one of the following:
 
-  - CPython_ >= 2.6 or >= 3.3
-  - PyPy_ >= 4.0
-  - IronPython_ 2.7
+  - CPython_ : 2.7 and >= 3.5
+  - PyPy_ : Latest version
 
 * MySQL Server -- one of the following:
 
-  - MySQL_ >= 4.1  (tested with only 5.5~)
-  - MariaDB_ >= 5.1
+  - MySQL_ >= 5.5
+  - MariaDB_ >= 5.5
 
-.. _CPython: http://www.python.org/
-.. _PyPy: http://pypy.org/
-.. _IronPython: http://ironpython.net/
-.. _MySQL: http://www.mysql.com/
+.. _CPython: https://www.python.org/
+.. _PyPy: https://pypy.org/
+.. _MySQL: https://www.mysql.com/
 .. _MariaDB: https://mariadb.org/
 
 
 Installation
 ------------
 
-The last stable release is available on PyPI and can be installed with ``pip``::
+Package is uploaded on `PyPI <https://pypi.org/project/PyMySQL>`_.
 
-    $ pip install PyMySQL
+You can install it with pip::
 
-Alternatively (e.g. if ``pip`` is not available), a tarball can be downloaded
-from GitHub and installed with Setuptools::
+    $ python3 -m pip install PyMySQL
 
-    $ # X.X is the desired PyMySQL version (e.g. 0.5 or 0.6).
-    $ curl -L https://github.com/PyMySQL/PyMySQL/tarball/pymysql-X.X | tar xz
-    $ cd PyMySQL*
-    $ python setup.py install
-    $ # The folder PyMySQL* can be safely removed now.
+To use "sha256_password" or "caching_sha2_password" for authenticate,
+you need to install additional dependency::
 
-Test Suite
-----------
+   $ python3 -m pip install PyMySQL[rsa]
 
-If you would like to run the test suite, create database for test like this::
 
-    mysql -e 'create database test_pymysql  DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;'
-    mysql -e 'create database test_pymysql2 DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;'
+Documentation
+-------------
 
-Then, copy the file ``.travis.databases.json`` to ``pymysql/tests/databases.json``
-and edit the new file to match your MySQL configuration::
+Documentation is available online: https://pymysql.readthedocs.io/
 
-    $ cp .travis.databases.json pymysql/tests/databases.json
-    $ $EDITOR pymysql/tests/databases.json
-
-To run all the tests, execute the script ``runtests.py``::
-
-    $ python runtests.py
-
-A ``tox.ini`` file is also provided for conveniently running tests on multiple
-Python versions::
-
-    $ tox
-
+For support, please refer to the `StackOverflow
+<https://stackoverflow.com/questions/tagged/pymysql>`_.
 
 Example
 -------
@@ -132,14 +132,17 @@ This example will print:
 Resources
 ---------
 
-DB-API 2.0: http://www.python.org/dev/peps/pep-0249
+* DB-API 2.0: https://www.python.org/dev/peps/pep-0249/
 
-MySQL Reference Manuals: http://dev.mysql.com/doc/
+* MySQL Reference Manuals: https://dev.mysql.com/doc/
 
-MySQL client/server protocol:
-http://dev.mysql.com/doc/internals/en/client-server-protocol.html
+* MySQL client/server protocol:
+  https://dev.mysql.com/doc/internals/en/client-server-protocol.html
 
-PyMySQL mailing list: https://groups.google.com/forum/#!forum/pymysql-users
+* "Connector" channel in MySQL Community Slack:
+  https://lefred.be/mysql-community-on-slack/
+
+* PyMySQL mailing list: https://groups.google.com/forum/#!forum/pymysql-users
 
 License
 -------
